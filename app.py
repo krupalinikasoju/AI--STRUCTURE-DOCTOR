@@ -1,8 +1,12 @@
 # Structure Doctor AI
 
 #Streamlit prototype for building condition screening, preliminary RCC
-load estimation, crack image review, and combined PDF reporting.
-
+"""
+Structure Doctor AI
+A Streamlit prototype for building condition screening,
+preliminary RCC load estimation, crack image review,
+and combined PDF reporting.
+"""
 ## Features
 - Building type and number-of-floors inputs
 - Preliminary RCC load estimates using explicit assumptions
