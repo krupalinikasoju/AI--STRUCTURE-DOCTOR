@@ -1,8 +1,12 @@
-
 import streamlit as st
 from PIL import Image, ImageEnhance, ImageFilter
 from io import BytesIO
 from datetime import datetime
+import html
+
+# --------------------------------------------------
+# PAGE CONFIGURATION
+# --------------------------------------------------
 
 st.set_page_config(
     page_title="Structure Doctor AI",
@@ -12,165 +16,327 @@ st.set_page_config(
 
 st.title("🏗️ Structure Doctor AI")
 st.subheader("RCC Load Calculation & Crack Assessment")
-st.caption("Indian Standards framework | Hyderabad, Telangana")
-
-st.warning(
-    "PRELIMINARY SCREENING ONLY. This application is not a "
-    "construction-ready structural design. A qualified structural "
-    "engineer must verify all inputs, loads, code provisions and findings."
+st.caption(
+    "Indian Standards framework | Hyderabad, Telangana | "
+    "Preliminary engineering screening"
 )
 
-# ---------------- PROJECT INPUTS ----------------
+st.warning(
+    "SAFETY NOTICE: This application provides preliminary estimates only. "
+    "It is not a structural design certificate and must not be used as "
+    "construction approval. A qualified structural engineer must verify "
+    "the building, inputs, calculations, code provisions, and findings."
+)
+
+# --------------------------------------------------
+# 1. PROJECT INPUTS
+# --------------------------------------------------
+
 st.header("1. Project Inputs")
 
 c1, c2, c3 = st.columns(3)
 
 with c1:
     location = st.text_input(
-        "Building location", "Hyderabad, Telangana"
+        "Building location",
+        value="Hyderabad, Telangana"
     )
+
     building_type = st.selectbox(
         "Building type",
-        ["Residential", "Commercial", "Office", "Institutional", "Other"]
+        [
+            "Residential",
+            "Commercial",
+            "Office",
+            "Institutional",
+            "Other"
+        ]
     )
+
     floors = st.number_input(
-        "Number of floors", min_value=1, max_value=100, value=3
+        "Number of floors",
+        min_value=1,
+        max_value=100,
+        value=3,
+        step=1
     )
 
 with c2:
     floor_height = st.number_input(
-        "Floor-to-floor height (m)",
-        min_value=2.0, max_value=6.0, value=3.0, step=0.1
+        "Typical floor-to-floor height (m)",
+        min_value=2.0,
+        max_value=6.0,
+        value=3.0,
+        step=0.1
     )
+
     length = st.number_input(
-        "Building length (m)", min_value=1.0, value=12.0
+        "Building length (m)",
+        min_value=1.0,
+        max_value=500.0,
+        value=12.0,
+        step=0.5
     )
+
     width = st.number_input(
-        "Building width (m)", min_value=1.0, value=10.0
+        "Building width (m)",
+        min_value=1.0,
+        max_value=500.0,
+        value=10.0,
+        step=0.5
     )
 
 with c3:
     slab_mm = st.number_input(
-        "Slab thickness (mm)", min_value=80, max_value=300, value=125
-    )
-    concrete_density = st.number_input(
-        "Concrete unit weight (kN/m³)",
-        min_value=20.0, max_value=30.0, value=25.0
-    )
-    image_file = st.file_uploader(
-        "Upload crack image", type=["jpg", "jpeg", "png"]
+        "Slab thickness (mm)",
+        min_value=80,
+        max_value=500,
+        value=125,
+        step=5
     )
 
-# ---------------- LOAD ASSUMPTIONS ----------------
+    concrete_density = st.number_input(
+        "Concrete unit weight (kN/m³)",
+        min_value=20.0,
+        max_value=30.0,
+        value=25.0,
+        step=0.5
+    )
+
+    image_file = st.file_uploader(
+        "Upload crack image",
+        type=["jpg", "jpeg", "png"]
+    )
+
+# --------------------------------------------------
+# 2. LOAD ASSUMPTIONS
+# --------------------------------------------------
+
 st.header("2. Load Assumptions")
+
+st.caption(
+    "Default loads below are illustrative inputs, not verified code values. "
+    "Select loads appropriate to the actual occupancy and building details."
+)
 
 a1, a2, a3 = st.columns(3)
 
 with a1:
     finishes = st.number_input(
         "Floor finishes/services (kN/m²)",
-        min_value=0.0, value=1.0, step=0.25
+        min_value=0.0,
+        value=1.0,
+        step=0.25
     )
 
 with a2:
     live_load = st.number_input(
-        "Imposed load (kN/m²)",
-        min_value=0.0, value=2.0, step=0.25,
-        help="Illustrative default only. Verify occupancy-specific value."
+        "Imposed/live load (kN/m²)",
+        min_value=0.0,
+        value=2.0,
+        step=0.25,
+        help=(
+            "Illustrative only. Verify the applicable occupancy category "
+            "and requirements of IS 875 Part 2."
+        )
     )
 
 with a3:
     wall_allowance = st.number_input(
         "Wall/partition allowance (kN/m²)",
-        min_value=0.0, value=1.0, step=0.25,
-        help="Simplified allowance, not a calculation of actual wall loads."
+        min_value=0.0,
+        value=1.0,
+        step=0.25,
+        help=(
+            "Simplified area allowance. Not a calculation of actual "
+            "wall loads or their distribution."
+        )
     )
 
 other_dead = st.number_input(
     "Other dead load allowance (kN/m²)",
-    min_value=0.0, value=0.0, step=0.25
+    min_value=0.0,
+    value=0.0,
+    step=0.25
 )
 
-# ---------------- PRELIMINARY CALCULATIONS ----------------
+# --------------------------------------------------
+# 3. PRELIMINARY LOAD CALCULATIONS
+# --------------------------------------------------
+
 area = length * width
 height_total = floors * floor_height
 
-slab_dead = (slab_mm / 1000.0) * concrete_density
+slab_thickness_m = slab_mm / 1000.0
 
-dead_load = slab_dead + finishes + wall_allowance + other_dead
+# Slab self-weight per unit plan area
+slab_dead = slab_thickness_m * concrete_density
+
+# Simplified area loads
+dead_load = (
+    slab_dead
+    + finishes
+    + wall_allowance
+    + other_dead
+)
+
 service_load = dead_load + live_load
 
+# Simple plan-area-based totals
+floor_dead_total = area * dead_load
+floor_live_total = area * live_load
 floor_total = area * service_load
-all_floor_total = floor_total * floors
-total_dead = area * dead_load * floors
-total_live = area * live_load * floors
+
+total_dead = floor_dead_total * floors
+total_live = floor_live_total * floors
+all_floor_total = total_dead + total_live
 
 st.header("3. Preliminary RCC Load Results")
 
 m1, m2, m3 = st.columns(3)
-m1.metric("Typical floor area", f"{area:.2f} m²")
-m2.metric("Approx. building height", f"{height_total:.2f} m")
-m3.metric("Slab self-weight", f"{slab_dead:.2f} kN/m²")
+
+m1.metric(
+    "Typical floor area",
+    f"{area:,.2f} m²"
+)
+
+m2.metric(
+    "Approx. total height",
+    f"{height_total:,.2f} m"
+)
+
+m3.metric(
+    "Slab self-weight",
+    f"{slab_dead:.3f} kN/m²"
+)
 
 m1, m2, m3 = st.columns(3)
-m1.metric("Assumed dead load", f"{dead_load:.2f} kN/m²")
-m2.metric("Service load per floor", f"{service_load:.2f} kN/m²")
-m3.metric("Load per typical floor", f"{floor_total:.2f} kN")
+
+m1.metric(
+    "Assumed dead load",
+    f"{dead_load:.3f} kN/m²"
+)
+
+m2.metric(
+    "Assumed live load",
+    f"{live_load:.3f} kN/m²"
+)
+
+m3.metric(
+    "Unfactored service load",
+    f"{service_load:.3f} kN/m²"
+)
+
+m1, m2, m3 = st.columns(3)
+
+m1.metric(
+    "Typical-floor dead load",
+    f"{floor_dead_total:,.2f} kN"
+)
+
+m2.metric(
+    "Typical-floor live load",
+    f"{floor_live_total:,.2f} kN"
+)
+
+m3.metric(
+    "Typical-floor total",
+    f"{floor_total:,.2f} kN"
+)
 
 st.metric(
-    "Simple total across all floors",
-    f"{all_floor_total:.2f} kN"
+    "Simplified total across all floors",
+    f"{all_floor_total:,.2f} kN"
 )
 
 st.markdown("### Transparent calculation trail")
 
-st.latex(
-    r"w_{slab}=t_{slab}\times \gamma_{concrete}"
-)
+st.markdown("**Step 1 — Slab self-weight**")
+
+st.latex(r"w_{slab}=t_{slab}\times\gamma_{concrete}")
+
 st.write(
-    f"Slab self-weight = {slab_mm}/1000 × "
-    f"{concrete_density} = {slab_dead:.3f} kN/m²"
+    f"Slab thickness = {slab_mm} / 1000 "
+    f"= {slab_thickness_m:.3f} m"
 )
+
+st.write(
+    f"Slab self-weight = {slab_thickness_m:.3f} × "
+    f"{concrete_density:.2f} "
+    f"= **{slab_dead:.3f} kN/m²**"
+)
+
+st.markdown("**Step 2 — Assumed dead load**")
 
 st.latex(
     r"w_D=w_{slab}+w_{finishes}+w_{walls}+w_{other}"
 )
+
 st.write(
-    f"Assumed dead load = {slab_dead:.3f} + {finishes:.2f} + "
-    f"{wall_allowance:.2f} + {other_dead:.2f} "
-    f"= {dead_load:.3f} kN/m²"
+    f"wD = {slab_dead:.3f} + {finishes:.3f} + "
+    f"{wall_allowance:.3f} + {other_dead:.3f} "
+    f"= **{dead_load:.3f} kN/m²**"
 )
 
+st.markdown("**Step 3 — Unfactored service load**")
+
 st.latex(r"w_{service}=w_D+w_L")
+
 st.write(
-    f"Unfactored service load = {dead_load:.3f} + "
-    f"{live_load:.2f} = {service_load:.3f} kN/m²"
+    f"wservice = {dead_load:.3f} + {live_load:.3f} "
+    f"= **{service_load:.3f} kN/m²**"
+)
+
+st.markdown("**Step 4 — Typical-floor load estimate**")
+
+st.latex(r"A=L\times B")
+
+st.write(
+    f"Plan area = {length:.2f} × {width:.2f} "
+    f"= **{area:.2f} m²**"
 )
 
 st.latex(r"W_{floor}=A\times w_{service}")
+
 st.write(
-    f"Floor load = {area:.2f} × {service_load:.3f} "
-    f"= {floor_total:.2f} kN"
+    f"Wfloor = {area:.2f} × {service_load:.3f} "
+    f"= **{floor_total:.2f} kN**"
 )
 
-st.latex(r"W_{total,\ simplified}=N_{floors}\times W_{floor}")
-st.write(
-    f"Simple all-floor total = {floors} × {floor_total:.2f} "
-    f"= {all_floor_total:.2f} kN"
+st.markdown("**Step 5 — Simplified all-floor total**")
+
+st.latex(
+    r"W_{total}=N_{floors}\times A\times w_{service}"
 )
 
-st.write(f"Approximate total height = {floors} × {floor_height:.2f} = {height_total:.2f} m")
-st.write(f"Dead-load subtotal = {total_dead:.2f} kN")
-st.write(f"Live-load subtotal = {total_live:.2f} kN")
+st.write(
+    f"Wtotal = {floors} × {area:.2f} × {service_load:.3f} "
+    f"= **{all_floor_total:.2f} kN**"
+)
+
+st.write(
+    f"Dead-load subtotal = {floors} × {area:.2f} × "
+    f"{dead_load:.3f} = **{total_dead:.2f} kN**"
+)
+
+st.write(
+    f"Live-load subtotal = {floors} × {area:.2f} × "
+    f"{live_load:.3f} = **{total_live:.2f} kN**"
+)
 
 st.info(
-    "These are simplified, unfactored gravity-load estimates. "
-    "The total across floors is NOT a column reaction. Actual member "
-    "forces require the structural layout, tributary areas, member "
-    "self-weights, load combinations and structural analysis."
+    "Interpretation: these are simplified, unfactored, gravity-load "
+    "estimates based on the full plan area and entered area-load assumptions. "
+    "They are not column reactions or verified structural forces. "
+    "The model does not calculate beam and column self-weight separately, "
+    "tributary areas, load combinations, lateral forces, member capacity, "
+    "or foundation capacity."
 )
 
-# ---------------- CRACK ASSESSMENT ----------------
+# --------------------------------------------------
+# 4. CRACK ASSESSMENT
+# --------------------------------------------------
+
 st.header("4. Crack Assessment")
 
 q1, q2, q3 = st.columns(3)
@@ -178,223 +344,439 @@ q1, q2, q3 = st.columns(3)
 with q1:
     crack_location = st.selectbox(
         "Crack location",
-        ["Wall", "Beam", "Column", "Slab", "Foundation", "Unknown"]
+        [
+            "Wall",
+            "Beam",
+            "Column",
+            "Slab",
+            "Foundation",
+            "Unknown"
+        ]
     )
+
     crack_width = st.number_input(
-        "Measured crack width (mm)", min_value=0.0, value=0.0, step=0.1
+        "Measured crack width (mm)",
+        min_value=0.0,
+        max_value=100.0,
+        value=0.0,
+        step=0.1
     )
 
 with q2:
     crack_length = st.number_input(
-        "Measured crack length (m)", min_value=0.0, value=0.0, step=0.1
+        "Measured crack length (m)",
+        min_value=0.0,
+        max_value=1000.0,
+        value=0.0,
+        step=0.1
     )
+
     pattern = st.selectbox(
         "Crack pattern",
-        ["Not assessed", "Vertical", "Horizontal", "Diagonal",
-         "Map/network", "Multiple/irregular"]
+        [
+            "Not assessed",
+            "Vertical",
+            "Horizontal",
+            "Diagonal",
+            "Map/network",
+            "Multiple/irregular"
+        ]
     )
 
 with q3:
     progression = st.selectbox(
         "Crack progression",
-        ["Unknown", "Stable based on monitoring",
-         "Widening or recurring", "Sudden change"]
+        [
+            "Unknown",
+            "Stable based on monitoring",
+            "Widening or recurring",
+            "Sudden change"
+        ]
     )
+
     dampness = st.selectbox(
         "Water ingress",
-        ["Unknown", "Not observed", "Present"]
+        [
+            "Unknown",
+            "Not observed",
+            "Present"
+        ]
     )
 
-if image_file:
-    image = Image.open(image_file).convert("RGB")
-    enhanced = ImageEnhance.Contrast(image).enhance(1.2)
-    enhanced = ImageEnhance.Sharpness(enhanced).enhance(1.5)
+image_available = image_file is not None
 
-    original_col, enhanced_col = st.columns(2)
-    with original_col:
-        st.image(image, caption="Uploaded image", use_container_width=True)
-    with enhanced_col:
-        st.image(
-            enhanced.filter(ImageFilter.MedianFilter(3)),
-            caption="Enhanced image for visual review",
-            use_container_width=True
+if image_available:
+    try:
+        image = Image.open(image_file).convert("RGB")
+
+        enhanced = ImageEnhance.Contrast(image).enhance(1.2)
+        enhanced = ImageEnhance.Sharpness(enhanced).enhance(1.5)
+        filtered = enhanced.filter(ImageFilter.MedianFilter(size=3))
+
+        original_col, enhanced_col = st.columns(2)
+
+        with original_col:
+            st.image(
+                image,
+                caption="Uploaded image",
+                use_container_width=True
+            )
+
+        with enhanced_col:
+            st.image(
+                filtered,
+                caption="Enhanced image for visual review",
+                use_container_width=True
+            )
+
+        st.caption(
+            "Image enhancement only. This application does not run a "
+            "validated AI crack detector and does not infer physical crack "
+            "width, length, structural capacity, or remaining building life "
+            "from image pixels."
         )
 
-    st.caption(
-        "Image enhancement is not validated AI crack detection. "
-        "No physical crack width or length is inferred from pixels."
-    )
+    except Exception as error:
+        st.error(
+            "The uploaded image could not be processed. "
+            "Try a valid JPG or PNG image."
+        )
+        image_available = False
 
-# ---------------- CONTEXTUAL RECOMMENDATIONS ----------------
+# --------------------------------------------------
+# 5. PRELIMINARY FINDINGS AND RECOMMENDATIONS
+# --------------------------------------------------
+
 st.header("5. Preliminary Findings & Recommendations")
 
 recommendations = []
 
 if progression == "Sudden change":
     recommendations.append(
-        "URGENT: Arrange immediate professional structural assessment. "
-        "Keep people away from areas showing signs of instability and "
-        "contact local emergency/building authorities if necessary."
+        "URGENT: Arrange immediate assessment by a qualified structural "
+        "engineer. If there are signs of instability, significant movement, "
+        "or falling material, keep people away from the affected area and "
+        "contact appropriate emergency or building authorities."
     )
 
 elif progression == "Widening or recurring":
     recommendations.append(
-        "Arrange prompt inspection by a qualified structural engineer "
-        "and document crack movement with dated measurements."
+        "Arrange prompt professional inspection. Record dated photographs "
+        "and repeat measurements using a suitable crack gauge."
     )
 
 if crack_location in ["Beam", "Column", "Foundation"]:
     recommendations.append(
-        f"A reported crack in a {crack_location.lower()} needs an "
-        "on-site structural assessment. Do not infer its cause from "
-        "the image or crack width alone."
+        f"A reported crack in a {crack_location.lower()} requires "
+        "on-site structural assessment. Its cause and significance cannot "
+        "be diagnosed from location or image alone."
+    )
+
+if crack_location == "Slab":
+    recommendations.append(
+        "Have the slab inspected in context, including crack location, "
+        "support conditions, deflection, loading, water ingress, and "
+        "any exposed or corroded reinforcement."
     )
 
 if pattern == "Diagonal":
     recommendations.append(
-        "Inspect the crack location, member geometry, support conditions "
-        "and movement history. A diagonal pattern alone cannot diagnose "
-        "shear failure."
+        "Document the crack location, geometry, nearby supports, and "
+        "movement history. A diagonal pattern alone does not establish "
+        "shear failure or its cause."
+    )
+
+if pattern == "Map/network":
+    recommendations.append(
+        "Arrange inspection to investigate possible shrinkage, surface "
+        "deterioration, moisture-related damage, or other causes. The "
+        "pattern alone is not a confirmed diagnosis."
     )
 
 if dampness == "Present":
     recommendations.append(
-        "Investigate water entry and assess possible reinforcement "
-        "corrosion or concrete deterioration before selecting a repair."
+        "Investigate the source of water ingress and assess possible "
+        "reinforcement corrosion or material deterioration before "
+        "choosing a repair method."
     )
 
 if crack_width > 0:
     recommendations.append(
-        f"Recorded crack width: {crack_width:.2f} mm. Verify using a "
-        "calibrated crack gauge and document repeat measurements."
+        f"User-entered crack width: {crack_width:.2f} mm. Verify the "
+        "measurement on site with an appropriate calibrated crack gauge."
     )
 
 if crack_length > 0:
     recommendations.append(
-        f"Recorded crack length: {crack_length:.2f} m. Verify and map "
-        "the extent on site."
+        f"User-entered crack length: {crack_length:.2f} m. Verify the "
+        "length and map the full extent during inspection."
     )
 
 if not recommendations:
     recommendations.append(
-        "Record the crack location, dimensions and dated photographs. "
-        "Arrange professional review if it grows, recurs, leaks or "
-        "affects a structural member."
+        "Record the crack location, dimensions, dated photographs, and "
+        "movement history. Seek professional review if the crack grows, "
+        "recurs, leaks, or affects a structural member."
     )
 
 recommendations.append(
-    "Do not conceal or repair a potentially structural crack before "
-    "its cause is assessed. A repair specification must follow diagnosis."
+    "Do not conceal or repair a potentially structural crack before its "
+    "cause is assessed. Repair methods should be specified after diagnosis."
 )
 
 for item in recommendations:
-    st.write("• " + item)
+    st.markdown(f"- {item}")
 
-# ---------------- CODE REFERENCES ----------------
+st.markdown("### Building life and safety")
+
+st.write(
+    "This application cannot estimate an exact number of remaining safe "
+    "years from a photograph or the simplified load calculation. A "
+    "condition assessment requires an on-site inspection and may require "
+    "material testing, reinforcement assessment, structural analysis, "
+    "and review of maintenance and exposure history."
+)
+
+# --------------------------------------------------
+# 6. INDIAN STANDARDS REFERENCE FRAMEWORK
+# --------------------------------------------------
+
 st.header("6. Indian Standards Reference Framework")
 
 st.markdown("""
-- **IS 875 (Part 1):** Dead loads.
-- **IS 875 (Part 2):** Imposed/live loads.
-- **IS 456:** Plain and reinforced concrete.
-- **IS 1893 (Part 1):** Earthquake actions, where applicable.
-- **IS 13920:** Ductile detailing, where applicable.
-
-Verify current editions, amendments, occupancy categories, site parameters,
-applicable clauses and load combinations with the project engineer.
-This prototype does not implement every code requirement.
+| Standard | General application |
+|---|---|
+| IS 875 (Part 1) | Dead loads |
+| IS 875 (Part 2) | Imposed/live loads |
+| IS 875 (Part 3) | Wind loads |
+| IS 456 | Plain and reinforced concrete |
+| IS 1893 (Part 1) | Earthquake actions, where applicable |
+| IS 13920 | Ductile detailing, where applicable |
 """)
 
-# ---------------- COMBINED REPORT ----------------
+st.warning(
+    "Reference framework only: this prototype does not implement every "
+    "requirement of these standards. Confirm the current editions, "
+    "amendments, applicable clauses, occupancy categories, site parameters, "
+    "load combinations, and detailing requirements with the project engineer."
+)
+
+# --------------------------------------------------
+# 7. COMBINED INSPECTION AND LOAD REPORT
+# --------------------------------------------------
+
 st.header("7. Combined Inspection & Load Report")
+
+generated_time = datetime.now().strftime("%d-%m-%Y %H:%M")
+
+image_status = (
+    "Image uploaded; enhancement only, no validated AI detection"
+    if image_available
+    else "No image uploaded"
+)
 
 report = f"""
 STRUCTURE DOCTOR AI
 RCC PRELIMINARY LOAD AND CRACK SCREENING REPORT
 
-Generated: {datetime.now().strftime("%d-%m-%Y %H:%M")}
+Generated: {generated_time}
+
+PROJECT INFORMATION
 Location: {location}
 Building type: {building_type}
 Number of floors: {floors}
 Floor-to-floor height: {floor_height:.2f} m
-Approximate total height: {height_total:.2f} m
+Approximate height (floors x floor-to-floor height): {height_total:.2f} m
 Plan dimensions: {length:.2f} m x {width:.2f} m
-Typical floor area: {area:.2f} m²
+Typical plan area: {area:.2f} m2
+Image status: {image_status}
 
-LOAD CALCULATIONS
-Slab self-weight: {slab_dead:.3f} kN/m²
-Assumed dead load: {dead_load:.3f} kN/m²
-Imposed load: {live_load:.3f} kN/m²
-Unfactored service load: {service_load:.3f} kN/m²
-Unfactored typical-floor total: {floor_total:.2f} kN
-Simple all-floor total: {all_floor_total:.2f} kN
-Dead-load subtotal: {total_dead:.2f} kN
-Live-load subtotal: {total_live:.2f} kN
+LOAD INPUTS AND ASSUMPTIONS
+Slab thickness: {slab_mm} mm
+Concrete unit weight: {concrete_density:.2f} kN/m3
+Floor finishes/services allowance: {finishes:.2f} kN/m2
+Wall/partition allowance: {wall_allowance:.2f} kN/m2
+Other dead-load allowance: {other_dead:.2f} kN/m2
+Imposed/live load: {live_load:.2f} kN/m2
+
+PRELIMINARY LOAD CALCULATIONS
+Slab thickness in metres = {slab_mm}/1000 = {slab_thickness_m:.3f} m
+
+Slab self-weight:
+w_slab = slab thickness x concrete unit weight
+       = {slab_thickness_m:.3f} x {concrete_density:.2f}
+       = {slab_dead:.3f} kN/m2
+
+Assumed dead load:
+w_D = slab self-weight + finishes + wall allowance + other dead load
+    = {slab_dead:.3f} + {finishes:.3f} + {wall_allowance:.3f}
+      + {other_dead:.3f}
+    = {dead_load:.3f} kN/m2
+
+Unfactored service load:
+w_service = dead load + live load
+          = {dead_load:.3f} + {live_load:.3f}
+          = {service_load:.3f} kN/m2
+
+Typical floor load estimate:
+A = length x width = {length:.2f} x {width:.2f}
+  = {area:.2f} m2
+
+W_floor = A x w_service
+        = {area:.2f} x {service_load:.3f}
+        = {floor_total:.2f} kN
+
+Simplified all-floor total:
+W_total = floors x A x w_service
+        = {floors} x {area:.2f} x {service_load:.3f}
+        = {all_floor_total:.2f} kN
+
+Dead-load subtotal across floors: {total_dead:.2f} kN
+Live-load subtotal across floors: {total_live:.2f} kN
 
 CRACK INFORMATION
 Location: {crack_location}
-Width: {crack_width:.2f} mm (user-entered)
-Length: {crack_length:.2f} m (user-entered)
+User-entered width: {crack_width:.2f} mm
+User-entered length: {crack_length:.2f} m
 Pattern: {pattern}
 Progression: {progression}
 Water ingress: {dampness}
 
-RECOMMENDATIONS
-""" + "\n".join("- " + x for x in recommendations) + """
+PRELIMINARY RECOMMENDATIONS
+""" + "\n".join(
+    f"- {item}" for item in recommendations
+) + f"""
 
-CODE REFERENCE FRAMEWORK
-IS 875 Parts 1 and 2; IS 456; IS 1893 Part 1 where applicable;
-IS 13920 where applicable. Verify current editions and amendments.
+INDIAN STANDARDS REFERENCE FRAMEWORK
+IS 875 Part 1: Dead loads.
+IS 875 Part 2: Imposed/live loads.
+IS 875 Part 3: Wind loads, where applicable.
+IS 456: Plain and reinforced concrete.
+IS 1893 Part 1: Earthquake actions, where applicable.
+IS 13920: Ductile detailing, where applicable.
+
+Verify current editions, amendments, applicable clauses and project-specific
+requirements. Listing a standard does not mean the application has implemented
+or verified all its provisions.
 
 SAFETY LIMITATIONS
-This is a preliminary screening report, not construction-ready design.
-The all-floor sum is not a column reaction. The calculation excludes a
-complete structural model, verified wall/member loads, load combinations,
-wind/seismic analysis, member design and foundation analysis.
-Image enhancement is not validated AI crack detection. Crack dimensions
-must be measured on site. Remaining safe building life cannot be estimated
-reliably from an image. Qualified structural-engineer review is required.
+1. This report is a preliminary screening aid, not a design certificate.
+2. Load values depend on user-entered assumptions and are unfactored.
+3. The all-floor total is not a column reaction or verified member force.
+4. The model does not perform full structural analysis, member design,
+   wind/seismic analysis, or foundation design.
+5. Wall loads, beams, columns, stairs, services, and other elements may
+   require separate assessment.
+6. Image enhancement is not validated AI crack detection.
+7. Crack dimensions are user-entered and must be verified on site.
+8. Remaining safe building life cannot be reliably determined from an image.
+9. A qualified structural engineer must verify the building and findings.
+
+END OF REPORT
 """
 
-st.text_area("Report preview", report, height=420)
-
-st.download_button(
-    "Download combined report (TXT)",
-    data=report.encode("utf-8"),
-    file_name="Structure_Doctor_AI_Report.txt",
-    mime="text/plain"
+st.text_area(
+    "Report preview",
+    value=report,
+    height=450
 )
 
-# Optional PDF export
+st.download_button(
+    label="Download combined report (TXT)",
+    data=report.encode("utf-8"),
+    file_name="Structure_Doctor_AI_Report.txt",
+    mime="text/plain",
+    use_container_width=True
+)
+
+# --------------------------------------------------
+# PDF REPORT EXPORT
+# --------------------------------------------------
+
 try:
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import (
+        SimpleDocTemplate,
+        Paragraph,
+        Spacer
+    )
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import mm
 
     pdf_buffer = BytesIO()
-    doc = SimpleDocTemplate(pdf_buffer, pagesize=A4)
+
+    doc = SimpleDocTemplate(
+        pdf_buffer,
+        pagesize=A4,
+        rightMargin=18 * mm,
+        leftMargin=18 * mm,
+        topMargin=18 * mm,
+        bottomMargin=18 * mm
+    )
+
     styles = getSampleStyleSheet()
+
+    body_style = ParagraphStyle(
+        "ReportBody",
+        parent=styles["BodyText"],
+        fontName="Helvetica",
+        fontSize=8.5,
+        leading=12,
+        spaceAfter=4
+    )
+
+    title_style = styles["Title"]
     story = []
 
-    for line in report.splitlines():
-        if line.strip():
-            story.append(Paragraph(line.replace("&", "&amp;"), styles["BodyText"]))
+    for index, line in enumerate(report.splitlines()):
+        if not line.strip():
+            story.append(Spacer(1, 5))
+            continue
+
+        safe_line = html.escape(line)
+
+        if index == 0:
+            story.append(
+                Paragraph(safe_line, title_style)
+            )
+        elif line.isupper() and len(line) < 70:
+            story.append(
+                Paragraph(safe_line, styles["Heading2"])
+            )
         else:
-            story.append(Spacer(1, 8))
+            story.append(
+                Paragraph(safe_line, body_style)
+            )
 
     doc.build(story)
 
     st.download_button(
-        "Download combined report (PDF)",
+        label="Download combined report (PDF)",
         data=pdf_buffer.getvalue(),
         file_name="Structure_Doctor_AI_Report.pdf",
-        mime="application/pdf"
+        mime="application/pdf",
+        use_container_width=True
     )
 
 except ImportError:
-    st.caption("For PDF export, install reportlab: py -m pip install reportlab")
+    st.info(
+        "PDF export requires ReportLab. Install it with: "
+        "py -m pip install reportlab"
+    )
+
+except Exception as error:
+    st.error(
+        "PDF generation failed. Check that ReportLab is installed "
+        "and try again."
+    )
+
+# --------------------------------------------------
+# FOOTER
+# --------------------------------------------------
+
+st.divider()
 
 st.caption(
-    "Engineering prototype • Preliminary estimates only • "
-    "Not a design certificate or construction instruction."
+    "Structure Doctor AI | Engineering prototype | "
+    "Preliminary estimates only | Not construction approval"
 )
